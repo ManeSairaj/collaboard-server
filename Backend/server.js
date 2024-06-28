@@ -7,8 +7,8 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
+    origin: "https://blackboard-apqtnd111-mrmightys-projects.vercel.app",
+    methods: ["GET"],
   },
 });
 
