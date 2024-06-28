@@ -27,12 +27,14 @@ const redoStacks = {}; // Store redo stacks for each room
 io.on("connection", (socket) => {
   console.log("a user connected");
 
-  socket.on("group", (roomId) => {
+  socket.on("group", (roomId, callback) => {
     socket.join(roomId);
     console.log(`User joined room: ${roomId}`);
 
+    
     const roomClients = io.sockets.adapter.rooms.get(roomId);
     console.log(`Room ${roomId} has ${roomClients.size} clients`);
+    callback(`Room ${roomId} has ${roomClients.size} clients`);
     // Send current state of the drawing board to the new user
     if (drawings[roomId]) {
       socket.emit("initDrawing", drawings[roomId]);
