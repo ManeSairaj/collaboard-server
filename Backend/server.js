@@ -19,10 +19,10 @@ app.get("/", (req, res) => {
 });
 
 const rooms = new Map();
-const drawings = {}; // Store drawings for each room
-const chatMessages = {}; // Store chat messages for each room
-const undoStacks = {}; // Store undo stacks for each room
-const redoStacks = {}; // Store redo stacks for each room
+const drawings = {};
+const chatMessages = {};
+const undoStacks = {};
+const redoStacks = {};
 
 io.on("connection", (socket) => {
   console.log("a user connected");
@@ -31,15 +31,14 @@ io.on("connection", (socket) => {
     socket.join(roomId);
     console.log(`User joined room: ${roomId}`);
 
-    
+    socket.emit("handshake", `${roomId} joined`);
+
     const roomClients = io.sockets.adapter.rooms.get(roomId);
     console.log(`Room ${roomId} has ${roomClients.size} clients`);
     callback(`Room ${roomId} has ${roomClients.size} clients`);
-    // Send current state of the drawing board to the new user
     if (drawings[roomId]) {
       socket.emit("initDrawing", drawings[roomId]);
     }
-    // Send current chat messages to the new user
     if (chatMessages[roomId]) {
       socket.emit("initChat", chatMessages[roomId]);
     }
@@ -70,7 +69,7 @@ io.on("connection", (socket) => {
       console.log("create", socket.rooms);
       socket.emit("roomCreated", data.roomId);
       console.log(`Room ${data.roomId} created`);
-      callback(data.roomId); // Pass room ID to client
+      callback(data.roomId);
     } else {
       callback("Room already exists");
     }
@@ -81,7 +80,7 @@ io.on("connection", (socket) => {
     const roomData = rooms.get(data.roomId);
     console.log(roomData);
     if (roomData && roomData.password === data.password) {
-      roomData.participants.add(socket.id); // Add username to participants on join
+      roomData.participants.add(socket.id);
       roomData.participants.add(data.username);
 
       socket.join(data.roomId);
@@ -97,7 +96,6 @@ io.on("connection", (socket) => {
         socket.emit("initChat", chatMessages[data.roomId]);
       }
 
-      // Send room data with username to the client upon successful join
       callback({ id: data.roomId, ...roomData });
     } else {
       callback("Invalid room ID or password");
