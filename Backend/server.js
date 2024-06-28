@@ -7,12 +7,21 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: ["https://blackboard-ix875cva3-mrmightys-projects.vercel.app","http://localhost:5173"],
-    methods: ["GET"],
+    origin: ["https://blackboard-ix875cva3-mrmightys-projects.vercel.app", "http://localhost:5173"],
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
   },
 });
 
-app.use(cors());
+const corsOptions = {
+  origin: ["https://blackboard-ix875cva3-mrmightys-projects.vercel.app", "http://localhost:5173"],
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 
 app.get("/", (req, res) => {
   res.json({ message: "Server Deployed" });
