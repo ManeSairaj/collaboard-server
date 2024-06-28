@@ -7,7 +7,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: ["https://blackboard-aee5tj3bz-mrmightys-projects.vercel.app","http://localhost:5173"],
+    origin: ["https://blackboard-ix875cva3-mrmightys-projects.vercel.app","http://localhost:5173"],
     methods: ["GET"],
   },
 });
