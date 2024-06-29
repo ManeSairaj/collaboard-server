@@ -28,14 +28,15 @@ app.get("/", (req, res) => {
 });
 
 const rooms = new Map();
-const drawings = {};
-const chatMessages = {};
-const undoStacks = {};
-const redoStacks = {};
+const drawings = {}; // Track drawings per room
+const chatMessages = {}; // Track chat messages per room
+const undoStacks = {}; // Undo stacks for drawings per room
+const redoStacks = {}; // Redo stacks for drawings per room
 
 io.on("connection", (socket) => {
   console.log("a user connected");
 
+  // Event: Joining a room
   socket.on("group", (roomId, callback) => {
     socket.join(roomId);
     console.log(`User joined room: ${roomId}`);
@@ -45,6 +46,8 @@ io.on("connection", (socket) => {
     const roomClients = io.sockets.adapter.rooms.get(roomId);
     console.log(`Room ${roomId} has ${roomClients.size} clients`);
     callback(`Room ${roomId} has ${roomClients.size} clients`);
+
+    // Initialize drawings and chat messages if they exist for the room
     if (drawings[roomId]) {
       socket.emit("initDrawing", drawings[roomId]);
     }
@@ -53,27 +56,29 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Event: Connecting to chat
   socket.on("chatConnect", ({ username, roomId, id }) => {
     console.log({ username, roomId, id });
     socket.join(roomId);
 
-    // Update or add user info to chatUserInfo
+    // Initialize or update chat messages for the room
     if (!chatMessages[roomId]) {
       chatMessages[roomId] = [];
     }
     socket.emit("initChat", chatMessages[roomId]);
   });
 
+  // Event: Creating a room
   socket.on("createRoom", (data, callback) => {
     console.log({ roomId: data.roomId, password: data.password });
     if (!rooms.has(data.roomId)) {
       rooms.set(data.roomId, {
         password: data.password,
         participants: new Set([socket.id, data.username]),
-        drawings: [],
+        drawings: [], // Initialize drawings array for the room
       });
-      undoStacks[data.roomId] = [];
-      redoStacks[data.roomId] = [];
+      undoStacks[data.roomId] = []; // Initialize undo stack for the room
+      redoStacks[data.roomId] = []; // Initialize redo stack for the room
       socket.join(data.roomId);
       console.log("create", socket.rooms);
       socket.emit("roomCreated", data.roomId);
@@ -84,6 +89,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Event: Joining a room
   socket.on("joinRoom", (data, callback) => {
     console.log({ roomId: data.roomId, password: data.password });
     const roomData = rooms.get(data.roomId);
@@ -97,10 +103,10 @@ io.on("connection", (socket) => {
       socket.emit("roomJoined", data.roomId);
       console.log(`User joined room ${data.roomId}`);
 
+      // Initialize drawings and chat messages if they exist for the room
       if (drawings[data.roomId]) {
         socket.emit("initDrawing", drawings[data.roomId]);
       }
-
       if (chatMessages[data.roomId]) {
         socket.emit("initChat", chatMessages[data.roomId]);
       }
@@ -112,11 +118,13 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Event: Starting a new line
   socket.on("startLine", (data) => {
-    const { roomId, lineId, color, strokeWidth } = data;
+    const { roomId, color, strokeWidth } = data;
     if (!drawings[roomId]) {
       drawings[roomId] = [];
     }
+    const lineId = generateLineId(); // Function to generate a unique line ID
     drawings[roomId].push({
       lineId,
       points: [],
@@ -125,69 +133,29 @@ io.on("connection", (socket) => {
     });
     undoStacks[roomId].push([...drawings[roomId]]);
     redoStacks[roomId] = [];
-    socket.to(roomId).emit("startLine", data);
+    socket.to(roomId).emit("startLine", { ...data, lineId });
   });
 
+  // Event: Handling drawing updates (lines and shapes)
   socket.on("drawing", (data) => {
-    const { points, roomId, lineId } = data;
+    const { roomId, points } = data;
 
-    console.log(data.type);
-    if (data.type) {
-      // Handle shapes (rectangles, circles, etc.)
-      if (!drawings[roomId]) {
-        drawings[roomId] = [];
-      }
-
-      // Find the shape in the drawings array and update or add it
-      let shapeIndex = drawings[roomId].findIndex(
-        (shape) => shape.id === data.id
-      );
-      if (shapeIndex !== -1) {
-        // Update existing shape
-        drawings[roomId][shapeIndex] = {
-          ...drawings[roomId][shapeIndex],
-          ...data,
-        };
-      } else {
-        // Add new shape
-        drawings[roomId].push({
-          ...data,
-        });
-      }
-
-      // Emit "drawing" event to all clients in the room
-      socket.to(roomId).emit("drawing", data);
-    } else {
-      // Handle lines
-      if (!drawings[roomId]) {
-        drawings[roomId] = [];
-      }
-
-      // Find the line in the drawings array and update or add it
-      let lineIndex = drawings[roomId].findIndex(
-        (line) => line.lineId === lineId
-      );
-      if (lineIndex !== -1) {
-        // Update existing line
-        drawings[roomId][lineIndex] = {
-          ...drawings[roomId][lineIndex],
-          points: [...drawings[roomId][lineIndex].points, ...points],
-        };
-      } else {
-        // Add new line
-        drawings[roomId].push({
-          lineId,
-          points,
-          color: data.color,
-          strokeWidth: data.strokeWidth,
-        });
-      }
-
-      // Emit "drawing" event to all clients in the room
-      socket.to(roomId).emit("drawing", data);
+    // Handle lines
+    if (!drawings[roomId]) {
+      drawings[roomId] = [];
     }
+
+    // Find the last drawn line and update it
+    const lastLineIndex = drawings[roomId].length - 1;
+    if (lastLineIndex >= 0) {
+      drawings[roomId][lastLineIndex].points.push(...points);
+    }
+
+    // Emit "drawing" event to all clients in the room
+    socket.to(roomId).emit("drawing", data);
   });
 
+  // Event: Undoing drawing actions
   socket.on("undo", (roomId) => {
     if (undoStacks[roomId] && undoStacks[roomId].length > 0) {
       const lastState = undoStacks[roomId].pop();
@@ -197,6 +165,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Event: Redoing drawing actions
   socket.on("redo", (roomId) => {
     if (redoStacks[roomId] && redoStacks[roomId].length > 0) {
       const lastState = redoStacks[roomId].pop();
@@ -206,12 +175,12 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Event: Sending chat messages
   socket.on("chatMessage", (data) => {
     const { username, message, roomId } = data;
     console.log("log", chatMessages);
     console.log("message on server", data);
     if (message.trim()) {
-      console.log("message on server", data);
       if (!chatMessages[roomId]) {
         chatMessages[roomId] = [];
       }
@@ -220,6 +189,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Event: Handling disconnection
   socket.on("disconnect", () => {
     console.log("user disconnected");
   });
